@@ -1,0 +1,209 @@
+{
+  "info": {
+    "name": "MediLink Backend Test (E2E)",
+    "_postman_id": "8e3cf7f7-4c7f-4d8a-bb2f-8a7a2e9b8c01",
+    "description": "Step-by-step collection to verify auth + PostgreSQL clinical endpoints + consent checks + chatbot.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001/api" },
+    { "key": "patientEmail", "value": "patient_e2e@test.com" },
+    { "key": "patientPassword", "value": "pass123" },
+    { "key": "patientName", "value": "Patient E2E" },
+    { "key": "providerEmail", "value": "provider_e2e@test.com" },
+    { "key": "providerPassword", "value": "pass123" },
+    { "key": "providerName", "value": "Dr Provider E2E" },
+    { "key": "todayDate", "value": "2026-03-23" }
+  ],
+  "item": [
+    {
+      "name": "1) Register Patient",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/register"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"{{patientPassword}}\",\n  \"name\": \"{{patientName}}\",\n  \"role\": \"patient\"\n}"
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('register patient: status 201/200', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "pm.environment.set('patientToken', json.token);",
+              "pm.environment.set('patientUserId', json.user.id);",
+              "pm.environment.set('patientEmailUsed', json.user.email);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2) Create Patient Clinical Record",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{patientToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/patients"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"age\": 25,\n  \"gender\": \"male\",\n  \"medicalHistory\": [],\n  \"currentMedications\": [],\n  \"allergies\": [],\n  \"vitalSigns\": [],\n  \"emergencyContacts\": [],\n  \"location\": \"Jimma, Ethiopia\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('create patient: returns id', function () {",
+              "  pm.expect(json).to.have.property('id');",
+              "});",
+              "pm.environment.set('patientRecordId', json.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3) Register Provider",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/register"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{providerEmail}}\",\n  \"password\": \"{{providerPassword}}\",\n  \"name\": \"{{providerName}}\",\n  \"role\": \"provider\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('register provider: status 201/200', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "pm.environment.set('providerToken', json.token);",
+              "pm.environment.set('providerUserId', json.user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4) Patient Grants Consent to Provider",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{patientToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/consent/grant"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"patientId\": \"{{patientUserId}}\",\n  \"providerEmail\": \"{{providerEmail}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('grant consent returns json', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5) Provider Reads Patient (Consent Check)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{providerToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/patients/{{patientUserId}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('provider can read patient data', function () {",
+              "  pm.expect(json).to.have.property('id');",
+              "  pm.expect(json).to.have.property('currentMedications');",
+              "  pm.expect(json).to.have.property('vitalSigns');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6) Chatbot Endpoint Test",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"query\": \"What is fever? Give safe general guidance.\" }"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('chat returns answer', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "  pm.expect(json).to.have.property('answer');",
+              "  pm.expect(String(json.answer)).to.have.length.above(5);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
